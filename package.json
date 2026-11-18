@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "predev": "node scripts/copy-engine.mjs",
+    "prebuild": "node scripts/copy-engine.mjs"
   },
   "dependencies": {
     "chess.js": "^1.4.0",
