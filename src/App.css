@@ -64,3 +64,132 @@
   opacity: 0.7;
   font-size: 0.9em;
 }
+
+/* Review */
+.app.wide {
+  max-width: 920px;
+}
+.review-main {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+.boardwrap {
+  width: min(480px, calc(100vw - 80px));
+}
+.player {
+  padding: 4px 2px;
+  font-size: 0.95em;
+}
+.evalbar {
+  width: 22px;
+  display: flex;
+  position: relative;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid #8886;
+}
+.evalbar-white {
+  background: #f1f1f1;
+  transition: flex 0.2s;
+}
+.evalbar-black {
+  background: #262522;
+  transition: flex 0.2s;
+}
+.evalbar-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.evalbar-label.on-white {
+  color: #262522;
+}
+.evalbar-label.on-black {
+  color: #f1f1f1;
+}
+.side {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.progress {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9em;
+}
+.progress progress {
+  width: 100%;
+}
+.evalgraph {
+  width: 100%;
+  height: 64px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.evalgraph-bg {
+  fill: #262522;
+}
+.evalgraph-area {
+  fill: #f1f1f1;
+}
+.evalgraph-mid {
+  stroke: #8886;
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.evalgraph-cursor {
+  stroke: #4a90d9;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+.movelist {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #8884;
+  border-radius: 4px;
+}
+.moverow {
+  display: grid;
+  grid-template-columns: 2.5em 1fr 1fr;
+  align-items: center;
+}
+.movenum {
+  opacity: 0.6;
+  padding-left: 6px;
+}
+.move {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+.move.sel {
+  background: #4a90d955;
+}
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.nav {
+  display: flex;
+  gap: 6px;
+}
+.nav button {
+  flex: 1;
+}

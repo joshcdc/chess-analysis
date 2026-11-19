@@ -8,6 +8,7 @@ import {
   type Game,
   type TimeClass,
 } from './chesscom/client'
+import { ReviewView } from './ui/ReviewView'
 
 const CLASSES: TimeClass[] = ['rapid', 'blitz', 'bullet']
 const PAGE_TARGET = 20
@@ -30,6 +31,7 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<Game | null>(null)
+  const [shown, setShown] = useState(PAGE_TARGET)
 
   /** Fetch months (newest first) until we have enough visible games. */
   async function loadMore(urls: string[], start: number, current: Game[]) {
@@ -39,14 +41,22 @@ export default function App() {
       let i = start
       let all = current
       let added = 0
+      const skipped: string[] = []
       while (i < urls.length && added < PAGE_TARGET) {
-        const month = await fetchMonth(urls[i] as string)
-        all = [...all, ...month]
-        added += month.length
+        const url = urls[i] as string
+        try {
+          const month = await fetchMonth(url)
+          all = [...all, ...month]
+          added += month.length
+        } catch {
+          // chess.com sometimes errors on very large months; skip it, keep going.
+          skipped.push(url.split('/').slice(-2).join('/'))
+        }
         i++
       }
       setGames(all)
       setNextArchive(i)
+      if (skipped.length) setError(`Couldn't load ${skipped.join(', ')} from chess.com (skipped).`)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -65,6 +75,7 @@ export default function App() {
     }
     setUsername(name)
     setGames([])
+    setShown(PAGE_TARGET)
     setSelected(null)
     setLoading(true)
     setError('')
@@ -86,6 +97,14 @@ export default function App() {
   }
 
   const visible = filterByClass(games, allowed)
+
+  if (selected) {
+    return (
+      <main className="app wide">
+        <ReviewView key={selected.id} game={selected} username={username} onBack={() => setSelected(null)} />
+      </main>
+    )
+  }
 
   return (
     <main className="app">
@@ -118,7 +137,7 @@ export default function App() {
       )}
 
       <ul className="games">
-        {visible.map((g) => {
+        {visible.slice(0, shown).map((g) => {
           const out = outcomeFor(g, username)
           const opp =
             g.white.username.toLowerCase() === username.toLowerCase()
@@ -127,7 +146,7 @@ export default function App() {
           return (
             <li key={g.id}>
               <button
-                className={`game ${out}${selected?.id === g.id ? ' selected' : ''}`}
+                className={`game ${out}`}
                 onClick={() => setSelected(g)}
               >
                 <span className="out">{out}</span>
@@ -144,8 +163,13 @@ export default function App() {
       </ul>
 
       {loading && <p>Loading…</p>}
-      {!loading && username && nextArchive < archives.length && (
-        <button onClick={() => loadMore(archives, nextArchive, games)}>
+      {!loading && username && (visible.length > shown || nextArchive < archives.length) && (
+        <button
+          onClick={() => {
+            if (visible.length > shown) setShown(shown + PAGE_TARGET)
+            else loadMore(archives, nextArchive, games)
+          }}
+        >
           Load more
         </button>
       )}
@@ -153,9 +177,6 @@ export default function App() {
         <p>No games match.</p>
       )}
 
-      {selected && (
-        <p className="meta">Selected game {selected.id} — analysis comes next.</p>
-      )}
     </main>
   )
 }

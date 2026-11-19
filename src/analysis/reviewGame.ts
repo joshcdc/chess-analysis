@@ -1,4 +1,4 @@
-import { Chess } from 'chess.js'
+import { Chess, type Move } from 'chess.js'
 import { MATE_CP, type Engine, type EvalResult } from '../engine/types'
 import {
   classify,
@@ -22,9 +22,8 @@ export interface MoveReview {
 }
 
 export interface GameReview {
+  /** Only moves whose before/after positions are both evaluated. */
   moves: MoveReview[]
-  /** evals[i] is the eval of position i; evals[0] is the start, evals[n] the final position. */
-  evals: number[]
   accuracy: { w: number; b: number }
 }
 
@@ -56,6 +55,61 @@ export function replayPgn(pgn: string) {
   return { verbose, positions }
 }
 
+/**
+ * Build the review from whatever evals exist so far. results[i] is the engine
+ * result for position i (undefined while still pending).
+ */
+export function computeReview(
+  verbose: Move[],
+  results: (EvalResult | undefined)[],
+): GameReview {
+  const moves: MoveReview[] = []
+  verbose.forEach((m, i) => {
+    const before = results[i]
+    const after = results[i + 1]
+    if (!before || !after) return
+    const loss = winPercentLoss(before.cp, after.cp, m.color)
+    moves.push({
+      ply: i + 1,
+      color: m.color,
+      san: m.san,
+      uci: m.from + m.to + (m.promotion ?? ''),
+      fenBefore: m.before,
+      fenAfter: m.after,
+      evalBefore: before.cp,
+      evalAfter: after.cp,
+      bestMove: before.best,
+      loss,
+      classification: classify(loss),
+    })
+  })
+  const lossesFor = (c: 'w' | 'b') => moves.filter((m) => m.color === c).map((m) => m.loss)
+  return {
+    moves,
+    accuracy: { w: gameAccuracy(lossesFor('w')), b: gameAccuracy(lossesFor('b')) },
+  }
+}
+
+export async function evaluatePositions(
+  positions: Position[],
+  engine: Engine,
+  depth: number,
+  opts: {
+    signal?: AbortSignal
+    /** Called after each position is evaluated. */
+    onEval?: (index: number, result: EvalResult) => void
+  } = {},
+): Promise<EvalResult[]> {
+  const results: EvalResult[] = []
+  for (const [i, pos] of positions.entries()) {
+    if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    const result = pos.terminal ?? (await engine.analyze(pos.fen, depth, opts.signal))
+    results.push(result)
+    opts.onEval?.(i, result)
+  }
+  return results
+}
+
 export async function reviewGame(
   pgn: string,
   engine: Engine,
@@ -66,38 +120,10 @@ export async function reviewGame(
   } = {},
 ): Promise<GameReview> {
   const { verbose, positions } = replayPgn(pgn)
-  const results: EvalResult[] = []
-
-  for (const pos of positions) {
-    if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    results.push(pos.terminal ?? (await engine.analyze(pos.fen, depth, opts.signal)))
-    opts.onProgress?.(results.length, positions.length)
-  }
-
-  const evals = results.map((r) => r.cp)
-  const moves: MoveReview[] = verbose.map((m, i) => {
-    const evalBefore = evals[i] as number
-    const evalAfter = evals[i + 1] as number
-    const loss = winPercentLoss(evalBefore, evalAfter, m.color)
-    return {
-      ply: i + 1,
-      color: m.color,
-      san: m.san,
-      uci: m.from + m.to + (m.promotion ?? ''),
-      fenBefore: m.before,
-      fenAfter: m.after,
-      evalBefore,
-      evalAfter,
-      bestMove: (results[i] as EvalResult).best,
-      loss,
-      classification: classify(loss),
-    }
+  let done = 0
+  const results = await evaluatePositions(positions, engine, depth, {
+    signal: opts.signal,
+    onEval: () => opts.onProgress?.(++done, positions.length),
   })
-
-  const lossesFor = (c: 'w' | 'b') => moves.filter((m) => m.color === c).map((m) => m.loss)
-  return {
-    moves,
-    evals,
-    accuracy: { w: gameAccuracy(lossesFor('w')), b: gameAccuracy(lossesFor('b')) },
-  }
+  return computeReview(verbose, results)
 }
