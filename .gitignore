@@ -24,8 +24,8 @@ dist-ssr
 *.sw?
 
 # Local data: game archives, cached analyses, future permanent storage
-data/
-storage/
+/data/
+/storage/
 *.db
 *.sqlite
 *.sqlite3

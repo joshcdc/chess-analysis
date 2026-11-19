@@ -6,7 +6,8 @@ import {
   type GameReview,
 } from '../analysis/reviewGame'
 import { createBrowserEngine } from '../engine/browserEngine'
-import type { EvalResult } from '../engine/types'
+import type { Engine, EvalResult } from '../engine/types'
+import { analysisStore } from '../storage/analysisStore'
 
 export const REVIEW_DEPTH = 16
 
@@ -22,8 +23,11 @@ export interface ReviewState {
 
 const EMPTY: GameReview = { moves: [], accuracy: { w: 100, b: 100 } }
 
-/** Replays the PGN and evaluates every position, streaming results as they finish. */
-export function useReview(pgn: string, depth = REVIEW_DEPTH): ReviewState {
+/**
+ * Replays the PGN and evaluates every position, streaming results as they finish.
+ * A finished analysis is cached by game id and depth and reused next time.
+ */
+export function useReview(gameId: string, pgn: string, depth = REVIEW_DEPTH): ReviewState {
   const parsed = useMemo(() => {
     try {
       return { ...replayPgn(pgn), error: '' }
@@ -39,25 +43,39 @@ export function useReview(pgn: string, depth = REVIEW_DEPTH): ReviewState {
     if (parsed.positions.length === 0) return
 
     const ctl = new AbortController()
-    const engine = createBrowserEngine()
-    evaluatePositions(parsed.positions, engine, depth, {
-      signal: ctl.signal,
-      onEval: (i, r) =>
-        setResults((prev) => {
-          const next = [...prev]
-          next[i] = r
-          return next
-        }),
-    }).catch((e: unknown) => {
+    let engine: Engine | undefined
+
+    const run = async () => {
+      const cached = await analysisStore.get(gameId, depth)
+      if (ctl.signal.aborted) return
+      if (cached && cached.length === parsed.positions.length) {
+        setResults(cached)
+        return
+      }
+
+      engine = createBrowserEngine()
+      const all = await evaluatePositions(parsed.positions, engine, depth, {
+        signal: ctl.signal,
+        onEval: (i, r) =>
+          setResults((prev) => {
+            const next = [...prev]
+            next[i] = r
+            return next
+          }),
+      })
+      await analysisStore.put(gameId, depth, all)
+    }
+
+    run().catch((e: unknown) => {
       if (e instanceof DOMException && e.name === 'AbortError') return
       setError(e instanceof Error ? e.message : 'Engine failed')
     })
 
     return () => {
       ctl.abort()
-      engine.dispose()
+      engine?.dispose()
     }
-  }, [parsed, depth])
+  }, [gameId, parsed, depth])
 
   const review = useMemo(
     () => (parsed.verbose.length ? computeReview(parsed.verbose, results) : EMPTY),

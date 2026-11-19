@@ -16,7 +16,7 @@ export function ReviewView({
   username: string
   onBack: () => void
 }) {
-  const { fens, sans, results, review, done, total, error } = useReview(game.pgn)
+  const { fens, sans, results, review, done, total, error } = useReview(game.id, game.pgn)
   const [ply, setPly] = useState(0)
   const last = Math.max(0, fens.length - 1)
 
